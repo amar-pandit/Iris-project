@@ -1,23 +1,30 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
 /* ================= BACKEND ================= */
 const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
 
-/* ================= GLOBAL ================= */
-let requestId = 0;
+/* ================= FIREBASE ================= */
+let firebaseConfig = { apiKey: "local", projectId: "local" };
+let appId = "iris-luxury-v1";
+
+try {
+    if (typeof __firebase_config !== "undefined")
+        firebaseConfig = JSON.parse(__firebase_config);
+    if (typeof __app_id !== "undefined")
+        appId = __app_id;
+} catch (e) {}
+
+const app = initializeApp(firebaseConfig);
+const db = firebaseConfig.apiKey !== "local" ? getFirestore(app) : null;
+const auth = firebaseConfig.apiKey !== "local" ? getAuth(app) : null;
 
 /* ================= SPECIES META ================= */
 const speciesMeta = {
-    "Iris-setosa": {
-        color: "#00f2ff",
-        radar: [5.01, 3.43, 1.46, 0.25]
-    },
-    "Iris-versicolor": {
-        color: "#7a3cff",
-        radar: [5.94, 2.77, 4.26, 1.33]
-    },
-    "Iris-virginica": {
-        color: "#ff2e88",
-        radar: [6.59, 2.97, 5.55, 2.03]
-    }
+    0: { name: "Iris-setosa", color: "#00f2ff" },
+    1: { name: "Iris-versicolor", color: "#7a3cff" },
+    2: { name: "Iris-virginica", color: "#ff2e88" }
 };
 
 /* ================= DOM ================= */
@@ -45,7 +52,7 @@ setInterval(() => {
         `${String(d.getSeconds()).padStart(2, "0")}`;
 }, 1000);
 
-/* ================= THREE ================= */
+/* ================= THREE JS ================= */
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.z = 7;
@@ -59,7 +66,7 @@ renderer.setSize(600, 600);
 
 scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-let mesh = new THREE.Mesh(
+const mesh = new THREE.Mesh(
     new THREE.IcosahedronGeometry(2, 1),
     new THREE.MeshStandardMaterial({ color: "#00f2ff" })
 );
@@ -101,45 +108,40 @@ const radarChart = new Chart(document.getElementById("radarChart"), {
     options: { plugins: { legend: { display: false } } }
 });
 
-/* ================= MAIN ================= */
-function sync() {
+/* ================= MAIN SYNC ================= */
+async function sync() {
     vsl.innerText = sl.value;
     vsw.innerText = sw.value;
     vpl.innerText = pl.value;
     vpw.innerText = pw.value;
 
-    const id = ++requestId;
+    try {
+        const res = await fetch(BACKEND_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sepal_length: +sl.value,
+                sepal_width: +sw.value,
+                petal_length: +pl.value,
+                petal_width: +pw.value
+            })
+        });
 
-    fetch(BACKEND_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            sepal_length: +sl.value,
-            sepal_width: +sw.value,
-            petal_length: +pl.value,
-            petal_width: +pw.value
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (id !== requestId) return;
-
-        const map = ["Iris-setosa", "Iris-versicolor", "Iris-virginica"];
-        const species = map[data.prediction];
-        const meta = speciesMeta[species];
+        const data = await res.json();
+        const meta = speciesMeta[data.prediction];
         const probs = data.probabilities;
 
-        /* ===== TEXT ===== */
-        speciesEl.innerText = species.split("-")[1];
+        /* TEXT */
+        speciesEl.innerText = meta.name.split("-")[1];
         speciesEl.style.color = meta.color;
-        hudEl.innerText = species.toUpperCase();
+        hudEl.innerText = meta.name.toUpperCase();
 
-        /* ===== HARMONY ===== */
+        /* HARMONY */
         harmonyEl.innerText = Math.round(
             Math.max(probs.setosa, probs.versicolor, probs.virginica) * 100
         );
 
-        /* ===== GRAPH (THIS WILL MOVE) ===== */
+        /* BAR */
         probChart.data.datasets[0].data = [
             probs.setosa,
             probs.versicolor,
@@ -147,25 +149,25 @@ function sync() {
         ];
         probChart.update();
 
-        /* ===== RADAR ===== */
-        radarChart.data.datasets[0].data = meta.radar;
+        /* RADAR */
+        radarChart.data.datasets[0].data = [
+            +sl.value, +sw.value, +pl.value, +pw.value
+        ];
         radarChart.data.datasets[0].borderColor = meta.color;
         radarChart.data.datasets[0].backgroundColor = meta.color + "55";
         radarChart.update();
 
-        /* ===== 3D SIZE ===== */
+        /* 3D */
         mesh.scale.set(
             1 + pl.value * 0.05,
             1 + sw.value * 0.05,
             1 + pw.value * 0.05
         );
+        mesh.material.color.set(meta.color);
 
-        /* ===== 3D COLOR (FORCED) ===== */
-        mesh.material.dispose();
-        mesh.material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(meta.color)
-        });
-    });
+    } catch (e) {
+        console.error("Backend error", e);
+    }
 }
 
 /* ================= EVENTS ================= */
