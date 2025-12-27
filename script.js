@@ -48,7 +48,7 @@ function initThree() {
         new THREE.MeshStandardMaterial({
             color: 0x00f2ff,
             transparent: true,
-            opacity: 0.7
+            opacity: 0.75
         })
     );
 
@@ -100,7 +100,6 @@ function sync() {
     vPl.innerText = pl;
     vPw.innerText = pw;
 
-    /* ---------- BACKEND CALL (LATEST ONLY) ---------- */
     const currentRequest = ++requestId;
 
     fetch(BACKEND_URL, {
@@ -141,7 +140,7 @@ function sync() {
         ];
         charts.prob.update();
 
-        /* ---------- CANONICAL LOOK (CSV BASED) ---------- */
+        /* ---------- RADAR (CANONICAL SHAPE) ---------- */
         const features = canonicalFeatures[mlSpecies];
         if (!features) return;
 
@@ -149,12 +148,20 @@ function sync() {
         charts.radar.data.datasets[0].borderColor = mlCurr.color;
         charts.radar.update();
 
+        /* ---------- 🔥 BLENDED 3D SCALE (SLIDER + CANONICAL) ---------- */
         const [slB, swB, plB, pwB] = features;
+
+        const blend = 0.35; // 👈 smoothness (0.25–0.45 best)
+
+        const scalePL = (pl * (1 - blend)) + (plB * blend);
+        const scaleSW = (sw * (1 - blend)) + (swB * blend);
+        const scalePW = (pw * (1 - blend)) + (pwB * blend);
+
         threeCore.mesh.scale.set(
-    1 + plB * 0.045,
-    1 + swB * 0.045,
-    1 + pwB * 0.045
-);
+            1 + scalePL * 0.05,
+            1 + scaleSW * 0.05,
+            1 + scalePW * 0.05
+        );
 
         threeCore.mesh.material.color.set(mlCurr.color);
     })
