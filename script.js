@@ -1,10 +1,23 @@
 /* ================= BACKEND URL =================
    🔴 IMPORTANT:
-   Deploy ke baad is URL ko apne Render URL se replace karna
+   Deploy ke baad is URL ko apne Render URL se replace karo
    Example:
-   https://iris-backend-abc123.onrender.com/predict
+   https://iris-project-b4fp.onrender.com/predict
 ================================================ */
-const BACKEND_URL = "REPLACE_WITH_RENDER_URL/predict";
+const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
+
+/* ================= SPECIES MAP (FIX) ================= */
+const speciesMap = {
+    0: "Iris-setosa",
+    1: "Iris-versicolor",
+    2: "Iris-virginica",
+    "setosa": "Iris-setosa",
+    "versicolor": "Iris-versicolor",
+    "virginica": "Iris-virginica",
+    "Iris-setosa": "Iris-setosa",
+    "Iris-versicolor": "Iris-versicolor",
+    "Iris-virginica": "Iris-virginica"
+};
 
 /* ================= DEBOUNCE ================= */
 function debounce(fn, delay = 400) {
@@ -152,9 +165,15 @@ function sync() {
     fetchPrediction(sl, sw, pl, pw).then((data) => {
         if (!data) return;
 
-        const pred = data.prediction;
-        const probs = data.probabilities;
+        /* 🔥 FIXED LOGIC */
+        const rawPred = data.prediction;
+        const pred = speciesMap[rawPred];
         const curr = speciesData[pred];
+
+        /* 🛡 SAFETY CHECK */
+        if (!curr) return;
+
+        const probs = data.probabilities;
 
         document.getElementById("hud-name").innerText = pred.toUpperCase();
         document.getElementById("species-title").innerText = pred.split("-")[1];
