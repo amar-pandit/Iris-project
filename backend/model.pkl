@@ -1,0 +1,2 @@
+git add backend/app.py backend/model.pkl .gitignore
+git commit -m "Fix FastAPI entrypoint for Render"
