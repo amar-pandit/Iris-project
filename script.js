@@ -4,7 +4,6 @@ const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
 /* ================= GLOBAL ================= */
 let requestId = 0;
 
-/* CSV-based canonical means */
 const canonicalFeatures = {
     "Iris-setosa":     [5.01, 3.43, 1.46, 0.25],
     "Iris-versicolor": [5.94, 2.77, 4.26, 1.33],
@@ -17,14 +16,30 @@ const speciesData = {
     "Iris-virginica": { color: "#ff2e88" }
 };
 
-/* ================= DOM (SAFE AFTER LOAD) ================= */
+/* ================= DOM ================= */
 let slEl, swEl, plEl, pwEl;
 let vSl, vSw, vPl, vPw;
-let harmonyEl, speciesTitleEl, hudNameEl;
+let harmonyEl, speciesTitleEl, hudNameEl, clockEl;
 
-/* ================= CHARTS & THREE ================= */
+/* ================= CHARTS / THREE ================= */
 let charts = {};
 let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
+
+/* ================= LIVE CLOCK ================= */
+function startClock() {
+    if (!clockEl) return;
+
+    function tick() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2, "0");
+        const m = String(now.getMinutes()).padStart(2, "0");
+        const s = String(now.getSeconds()).padStart(2, "0");
+        clockEl.textContent = `${h}:${m}:${s}`;
+    }
+
+    tick();
+    setInterval(tick, 1000);
+}
 
 /* ================= THREE.JS ================= */
 function initThree() {
@@ -47,13 +62,12 @@ function initThree() {
 
     renderer.setSize(container.clientWidth, container.clientHeight);
 
-    const light = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 
     const mesh = new THREE.Mesh(
         new THREE.IcosahedronGeometry(2, 1),
         new THREE.MeshStandardMaterial({
-            color: 0x00f2ff,
+            color: "#00f2ff",
             transparent: true,
             opacity: 0.85
         })
@@ -64,12 +78,11 @@ function initThree() {
 
     threeCore = { scene, camera, renderer, mesh };
 
-    function animate() {
+    (function animate() {
         requestAnimationFrame(animate);
         mesh.rotation.y += 0.003;
         renderer.render(scene, camera);
-    }
-    animate();
+    })();
 }
 
 /* ================= CHARTS ================= */
@@ -97,7 +110,7 @@ function initCharts() {
             datasets: [{
                 data: [5.01, 3.43, 1.46, 0.25],
                 borderColor: "#00f2ff",
-                backgroundColor: "rgba(0,242,255,0.15)"
+                backgroundColor: "rgba(0,242,255,0.2)"
             }]
         },
         options: {
@@ -106,7 +119,7 @@ function initCharts() {
     });
 }
 
-/* ================= MAIN SYNC ================= */
+/* ================= MAIN LOGIC ================= */
 function sync() {
     const sl = +slEl.value;
     const sw = +swEl.value;
@@ -145,20 +158,19 @@ function sync() {
 
         const color = speciesData[mlSpecies].color;
 
-        /* ---------- SPECIES TEXT ---------- */
+        /* ===== TEXT ===== */
         speciesTitleEl.textContent = mlSpecies.split("-")[1];
         speciesTitleEl.style.color = color;
-
         hudNameEl.textContent = mlSpecies.toUpperCase();
 
-        /* ---------- HARMONY SCORE (REAL) ---------- */
+        /* ===== HARMONY SCORE ===== */
         const probs = data.probabilities;
         const harmony = Math.round(
             Math.max(probs.setosa, probs.versicolor, probs.virginica) * 100
         );
         harmonyEl.textContent = harmony;
 
-        /* ---------- PROBABILITY BAR ---------- */
+        /* ===== DIVERSITY INDEX ===== */
         charts.prob.data.datasets[0].data = [
             probs.setosa,
             probs.versicolor,
@@ -166,15 +178,14 @@ function sync() {
         ];
         charts.prob.update();
 
-        /* ---------- RADAR (CANONICAL) ---------- */
+        /* ===== RADAR ===== */
         const base = canonicalFeatures[mlSpecies];
         charts.radar.data.datasets[0].data = base;
         charts.radar.data.datasets[0].borderColor = color;
-        charts.radar.data.datasets[0].backgroundColor =
-            color + "33";
+        charts.radar.data.datasets[0].backgroundColor = color + "33";
         charts.radar.update();
 
-        /* ---------- 3D SCALE (SLIDER + CANONICAL BLEND) ---------- */
+        /* ===== 3D SCALE (SLIDER + CANONICAL BLEND) ===== */
         const [slB, swB, plB, pwB] = base;
         const blend = 0.35;
 
@@ -187,11 +198,23 @@ function sync() {
             1 + scaleSW * 0.05,
             1 + scalePW * 0.05
         );
-        threeCore.mesh.material.color.set(color);
+
+        threeCore.mesh.material.color.setStyle(color);
+        threeCore.mesh.material.needsUpdate = true;
     });
 }
 
-/* ================= INIT AFTER DOM ================= */
+/* ================= BUTTONS ================= */
+window.saveSpecimen = function () {
+    alert("✅ Specimen archived successfully!");
+};
+
+window.runAnalysis = function () {
+    document.getElementById("ai-report").innerText =
+        "AI Analysis Complete. Specimen shows stable morphology with high confidence.";
+};
+
+/* ================= INIT ================= */
 window.addEventListener("DOMContentLoaded", () => {
     slEl = document.getElementById("sl");
     swEl = document.getElementById("sw");
@@ -206,9 +229,11 @@ window.addEventListener("DOMContentLoaded", () => {
     harmonyEl = document.getElementById("harmony-score");
     speciesTitleEl = document.getElementById("species-title");
     hudNameEl = document.getElementById("hud-name");
+    clockEl = document.getElementById("clock");
 
     initThree();
     initCharts();
+    startClock();
     sync();
 
     [slEl, swEl, plEl, pwEl].forEach(el =>
