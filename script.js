@@ -151,10 +151,11 @@ function sync() {
 
         const [slB, swB, plB, pwB] = features;
         threeCore.mesh.scale.set(
-            1 + plB * 0.08,
-            1 + swB * 0.08,
-            1 + pwB * 0.08
-        );
+    1 + plB * 0.045,
+    1 + swB * 0.045,
+    1 + pwB * 0.045
+);
+
         threeCore.mesh.material.color.set(mlCurr.color);
     })
     .catch(() => {});
