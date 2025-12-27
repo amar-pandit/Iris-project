@@ -3,7 +3,7 @@ import { getFirestore, collection, getDocs } from "https://www.gstatic.com/fireb
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 /* ================= BACKEND CONFIG ================= */
-const BACKEND_URL = "http://127.0.0.1:8000/predict";
+const BACKEND_URL = "https://your-backend.onrender.com/predict";
 /* ================================================== */
 
 /* ================= DEBOUNCE ================= */
