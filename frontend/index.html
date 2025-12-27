@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>Aether-Iris | Luxury Bio-Studio</title>
+
+    <!-- Professional Assets -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- ✅ YOUR CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="luxury-header no-print">
+    <div class="brand">
+        <div class="brand-icon"><i class="fa-solid fa-leaf"></i></div>
+        <div class="brand-text"><h1>AETHER<span>IRIS</span></h1></div>
+    </div>
+    <div class="sys-meta">
+        <div id="user-display"><i class="fa-solid fa-user-check"></i> ACC_042</div>
+        <div id="clock">00:00:00</div>
+    </div>
+</header>
+
+<div class="app-shell">
+
+    <aside class="premium-card">
+        <div class="section-title">Specimen Parameters</div>
+
+        <div class="input-group">
+            <div class="slider-box">
+                <div class="label-row">Sepal Length <b id="v-sl">5.1</b></div>
+                <input type="range" id="sl" min="4.0" max="8.0" step="0.1" value="5.1">
+            </div>
+
+            <div class="slider-box">
+                <div class="label-row">Sepal Width <b id="v-sw">3.5</b></div>
+                <input type="range" id="sw" min="2.0" max="4.5" step="0.1" value="3.5">
+            </div>
+
+            <div class="slider-box">
+                <div class="label-row">Petal Length <b id="v-pl">1.4</b></div>
+                <input type="range" id="pl" min="1.0" max="7.0" step="0.1" value="1.4">
+            </div>
+
+            <div class="slider-box">
+                <div class="label-row">Petal Width <b id="v-pw">0.2</b></div>
+                <input type="range" id="pw" min="0.1" max="2.5" step="0.1" value="0.2">
+            </div>
+        </div>
+
+        <div class="section-title">Diversity Index</div>
+        <div style="height: 120px;"><canvas id="probChart"></canvas></div>
+
+        <button class="btn-luxury" onclick="window.saveSpecimen()">
+            <i class="fa-solid fa-bookmark"></i> Archive Discovery
+        </button>
+    </aside>
+
+    <main class="stage" id="viewport">
+        <div class="stage-hud">
+            <p id="hud-status">Signature Verified</p>
+            <h2 id="hud-name">IRIS SETOSA</h2>
+        </div>
+        <canvas id="three-canvas"></canvas>
+    </main>
+
+    <aside class="premium-card">
+        <div class="harmony-box">
+            <div class="section-title" style="justify-content:center;">Harmony Score</div>
+            <div class="harmony-val" id="harmony-score">94</div>
+        </div>
+
+        <div id="species-container" style="text-align:center;">
+            <h3 id="species-title">Setosa</h3>
+        </div>
+
+        <div style="height:200px;"><canvas id="radarChart"></canvas></div>
+
+        <div class="section-title">AI Interpretation</div>
+        <div class="ai-wisdom" id="ai-report">
+            Analyzing the intricate proportions of your specimen...
+        </div>
+
+        <button class="btn-luxury" id="aiBtn" onclick="window.runAnalysis()">Deep Insights</button>
+
+        <div class="section-title">Recent Discoveries</div>
+        <div class="archive-mini" id="global-archive">
+            <div style="text-align:center; opacity:0.4;">Local Archive Active.</div>
+        </div>
+    </aside>
+
+</div>
+
+<!-- ✅ YOUR JS -->
+<script type="module" src="script.js"></script>
+</body>
+</html>
