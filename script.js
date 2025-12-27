@@ -1,10 +1,10 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-/* ================= BACKEND CONFIG ================= */
-const BACKEND_URL = "https://your-backend.onrender.com/predict";
-/* ================================================== */
+/* ================= BACKEND URL =================
+   🔴 IMPORTANT:
+   Deploy ke baad is URL ko apne Render URL se replace karna
+   Example:
+   https://iris-backend-abc123.onrender.com/predict
+================================================ */
+const BACKEND_URL = "REPLACE_WITH_RENDER_URL/predict";
 
 /* ================= DEBOUNCE ================= */
 function debounce(fn, delay = 400) {
@@ -14,7 +14,6 @@ function debounce(fn, delay = 400) {
         timer = setTimeout(() => fn(...args), delay);
     };
 }
-/* ============================================ */
 
 /* ================= TOAST ================= */
 function toast(msg) {
@@ -37,24 +36,8 @@ function toast(msg) {
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2500);
 }
-/* ========================================= */
 
-// ---------- Firebase Safe Config ----------
-let firebaseConfig = { apiKey: "local", projectId: "local" };
-let appId = "iris-luxury-v1";
-
-try {
-    if (typeof __firebase_config !== "undefined")
-        firebaseConfig = JSON.parse(__firebase_config);
-    if (typeof __app_id !== "undefined")
-        appId = __app_id;
-} catch (e) {}
-
-const app = initializeApp(firebaseConfig);
-const db = firebaseConfig.apiKey !== "local" ? getFirestore(app) : null;
-const auth = firebaseConfig.apiKey !== "local" ? getAuth(app) : null;
-
-// ---------- Global ----------
+/* ================= GLOBAL ================= */
 let charts = {};
 let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
 
@@ -64,7 +47,7 @@ const speciesData = {
     "Iris-virginica": { color: "#ff0070" }
 };
 
-/* ================= BACKEND FETCH ================= */
+/* ================= BACKEND CALL ================= */
 async function fetchPrediction(sl, sw, pl, pw) {
     try {
         const res = await fetch(BACKEND_URL, {
@@ -78,44 +61,13 @@ async function fetchPrediction(sl, sw, pl, pw) {
             })
         });
         return await res.json();
-    } catch {
+    } catch (err) {
+        console.error("Backend not reachable");
         return null;
     }
 }
-/* ================================================= */
 
-// ---------- Firebase ----------
-if (auth) {
-    signInAnonymously(auth).catch(() => {});
-    onAuthStateChanged(auth, (user) => {
-        if (user) loadArchiveOnce();
-    });
-}
-
-/* ONE-TIME ARCHIVE LOAD (no realtime flicker) */
-async function loadArchiveOnce() {
-    if (!db) return;
-    const ref = collection(db, "artifacts", appId, "public", "data", "archive");
-    const snap = await getDocs(ref);
-
-    const list = document.getElementById("global-archive");
-    if (!list) return;
-
-    list.innerHTML = "";
-    snap.forEach((d) => {
-        const r = d.data();
-        const div = document.createElement("div");
-        div.className = "archive-item";
-        div.innerHTML = `<span><b>${r.name}</b></span>
-                         <span style="opacity:0.5">${new Date(r.time).toLocaleTimeString()}</span>`;
-        list.appendChild(div);
-    });
-}
-
-/* SAVE BUTTON */
-window.saveSpecimen = () => toast("Archived (Local)");
-
-// ---------- THREE.JS ----------
+/* ================= THREE.JS ================= */
 function initThree() {
     const container = document.getElementById("viewport");
     if (!container) return;
@@ -148,6 +100,7 @@ function initThree() {
 
     scene.add(mesh);
     camera.position.z = 7;
+
     threeCore = { scene, camera, renderer, mesh };
 
     (function animate() {
@@ -157,7 +110,7 @@ function initThree() {
     })();
 }
 
-// ---------- CHARTS ----------
+/* ================= CHARTS ================= */
 function initCharts() {
     charts.prob = new Chart(document.getElementById("probChart"), {
         type: "bar",
@@ -181,9 +134,12 @@ function initCharts() {
     });
 }
 
-// ---------- SYNC ----------
+/* ================= MAIN SYNC ================= */
 function sync() {
-    const sl = +slEl.value, sw = +swEl.value, pl = +plEl.value, pw = +pwEl.value;
+    const sl = +slEl.value;
+    const sw = +swEl.value;
+    const pl = +plEl.value;
+    const pw = +pwEl.value;
 
     vSl.innerText = sl;
     vSw.innerText = sw;
@@ -217,16 +173,20 @@ function sync() {
 
 const debouncedSync = debounce(sync, 400);
 
-// ---------- INIT ----------
+/* ================= BUTTON ================= */
+window.saveSpecimen = () => toast("Archived (Local)");
+
+/* ================= INIT ================= */
 window.onload = () => {
     initThree();
     initCharts();
+
     ["sl", "sw", "pl", "pw"].forEach(id =>
         document.getElementById(id).addEventListener("input", debouncedSync)
     );
 };
 
-// ---------- DOM ----------
+/* ================= DOM ================= */
 const slEl = document.getElementById("sl");
 const swEl = document.getElementById("sw");
 const plEl = document.getElementById("pl");
