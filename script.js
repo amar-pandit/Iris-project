@@ -1,30 +1,35 @@
-/* ================= BACKEND URL ================= */
+/* ================= BACKEND ================= */
 const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
 
-/* ================= RACE CONDITION FIX ================= */
+/* ================= GLOBAL ================= */
 let requestId = 0;
 
-/* ================= CANONICAL FEATURES (CSV MEAN BASED) ================= */
+/* CSV-based canonical means */
 const canonicalFeatures = {
     "Iris-setosa":     [5.01, 3.43, 1.46, 0.25],
     "Iris-versicolor": [5.94, 2.77, 4.26, 1.33],
     "Iris-virginica":  [6.59, 2.97, 5.55, 2.03]
 };
 
-/* ================= GLOBAL ================= */
-let charts = {};
-let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
-
 const speciesData = {
     "Iris-setosa": { color: "#00f2ff" },
-    "Iris-versicolor": { color: "#7000ff" },
-    "Iris-virginica": { color: "#ff0070" }
+    "Iris-versicolor": { color: "#7a3cff" },
+    "Iris-virginica": { color: "#ff2e88" }
 };
+
+/* ================= DOM (SAFE AFTER LOAD) ================= */
+let slEl, swEl, plEl, pwEl;
+let vSl, vSw, vPl, vPw;
+let harmonyEl, speciesTitleEl, hudNameEl;
+
+/* ================= CHARTS & THREE ================= */
+let charts = {};
+let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
 
 /* ================= THREE.JS ================= */
 function initThree() {
     const container = document.getElementById("viewport");
-    if (!container) return;
+    const canvas = document.getElementById("three-canvas");
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
@@ -35,20 +40,22 @@ function initThree() {
     );
 
     const renderer = new THREE.WebGLRenderer({
-        canvas: document.getElementById("three-canvas"),
+        canvas,
         antialias: true,
         alpha: true
     });
 
     renderer.setSize(container.clientWidth, container.clientHeight);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+    const light = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(light);
 
     const mesh = new THREE.Mesh(
         new THREE.IcosahedronGeometry(2, 1),
         new THREE.MeshStandardMaterial({
             color: 0x00f2ff,
             transparent: true,
-            opacity: 0.75
+            opacity: 0.85
         })
     );
 
@@ -57,11 +64,12 @@ function initThree() {
 
     threeCore = { scene, camera, renderer, mesh };
 
-    (function animate() {
+    function animate() {
         requestAnimationFrame(animate);
         mesh.rotation.y += 0.003;
         renderer.render(scene, camera);
-    })();
+    }
+    animate();
 }
 
 /* ================= CHARTS ================= */
@@ -70,11 +78,15 @@ function initCharts() {
         type: "bar",
         data: {
             labels: ["Setosa", "Versicolor", "Virginica"],
-            datasets: [{ data: [0, 0, 0] }]
+            datasets: [{
+                data: [0, 0, 0],
+                backgroundColor: ["#00f2ff", "#7a3cff", "#ff2e88"]
+            }]
         },
         options: {
             indexAxis: "y",
-            plugins: { legend: { display: false } }
+            plugins: { legend: { display: false } },
+            scales: { x: { min: 0, max: 1 } }
         }
     });
 
@@ -82,23 +94,29 @@ function initCharts() {
         type: "radar",
         data: {
             labels: ["SL", "SW", "PL", "PW"],
-            datasets: [{ data: [5.01, 3.43, 1.46, 0.25] }]
+            datasets: [{
+                data: [5.01, 3.43, 1.46, 0.25],
+                borderColor: "#00f2ff",
+                backgroundColor: "rgba(0,242,255,0.15)"
+            }]
         },
-        options: { plugins: { legend: { display: false } } }
+        options: {
+            plugins: { legend: { display: false } }
+        }
     });
 }
 
-/* ================= MAIN LOGIC ================= */
+/* ================= MAIN SYNC ================= */
 function sync() {
     const sl = +slEl.value;
     const sw = +swEl.value;
     const pl = +plEl.value;
     const pw = +pwEl.value;
 
-    vSl.innerText = sl;
-    vSw.innerText = sw;
-    vPl.innerText = pl;
-    vPw.innerText = pw;
+    vSl.textContent = sl;
+    vSw.textContent = sw;
+    vPl.textContent = pl;
+    vPw.textContent = pw;
 
     const currentRequest = ++requestId;
 
@@ -125,67 +143,75 @@ function sync() {
         const mlSpecies = map[data.prediction];
         if (!mlSpecies) return;
 
-        const mlCurr = speciesData[mlSpecies];
+        const color = speciesData[mlSpecies].color;
 
-        /* ---------- TEXT + COLOR ---------- */
-        document.getElementById("hud-name").innerText = mlSpecies.toUpperCase();
-        document.getElementById("species-title").innerText = mlSpecies.split("-")[1];
-        document.getElementById("species-title").style.color = mlCurr.color;
+        /* ---------- SPECIES TEXT ---------- */
+        speciesTitleEl.textContent = mlSpecies.split("-")[1];
+        speciesTitleEl.style.color = color;
 
-        /* ---------- CONFIDENCE ---------- */
+        hudNameEl.textContent = mlSpecies.toUpperCase();
+
+        /* ---------- HARMONY SCORE (REAL) ---------- */
+        const probs = data.probabilities;
+        const harmony = Math.round(
+            Math.max(probs.setosa, probs.versicolor, probs.virginica) * 100
+        );
+        harmonyEl.textContent = harmony;
+
+        /* ---------- PROBABILITY BAR ---------- */
         charts.prob.data.datasets[0].data = [
-            data.probabilities.setosa,
-            data.probabilities.versicolor,
-            data.probabilities.virginica
+            probs.setosa,
+            probs.versicolor,
+            probs.virginica
         ];
         charts.prob.update();
 
-        /* ---------- RADAR (CANONICAL SHAPE) ---------- */
-        const features = canonicalFeatures[mlSpecies];
-        if (!features) return;
-
-        charts.radar.data.datasets[0].data = features;
-        charts.radar.data.datasets[0].borderColor = mlCurr.color;
+        /* ---------- RADAR (CANONICAL) ---------- */
+        const base = canonicalFeatures[mlSpecies];
+        charts.radar.data.datasets[0].data = base;
+        charts.radar.data.datasets[0].borderColor = color;
+        charts.radar.data.datasets[0].backgroundColor =
+            color + "33";
         charts.radar.update();
 
-        /* ---------- 🔥 BLENDED 3D SCALE (SLIDER + CANONICAL) ---------- */
-        const [slB, swB, plB, pwB] = features;
+        /* ---------- 3D SCALE (SLIDER + CANONICAL BLEND) ---------- */
+        const [slB, swB, plB, pwB] = base;
+        const blend = 0.35;
 
-        const blend = 0.35; // 👈 smoothness (0.25–0.45 best)
-
-        const scalePL = (pl * (1 - blend)) + (plB * blend);
-        const scaleSW = (sw * (1 - blend)) + (swB * blend);
-        const scalePW = (pw * (1 - blend)) + (pwB * blend);
+        const scalePL = pl * (1 - blend) + plB * blend;
+        const scaleSW = sw * (1 - blend) + swB * blend;
+        const scalePW = pw * (1 - blend) + pwB * blend;
 
         threeCore.mesh.scale.set(
             1 + scalePL * 0.05,
             1 + scaleSW * 0.05,
             1 + scalePW * 0.05
         );
-
-        threeCore.mesh.material.color.set(mlCurr.color);
-    })
-    .catch(() => {});
+        threeCore.mesh.material.color.set(color);
+    });
 }
 
-/* ================= INIT ================= */
-window.onload = () => {
+/* ================= INIT AFTER DOM ================= */
+window.addEventListener("DOMContentLoaded", () => {
+    slEl = document.getElementById("sl");
+    swEl = document.getElementById("sw");
+    plEl = document.getElementById("pl");
+    pwEl = document.getElementById("pw");
+
+    vSl = document.getElementById("v-sl");
+    vSw = document.getElementById("v-sw");
+    vPl = document.getElementById("v-pl");
+    vPw = document.getElementById("v-pw");
+
+    harmonyEl = document.getElementById("harmony-score");
+    speciesTitleEl = document.getElementById("species-title");
+    hudNameEl = document.getElementById("hud-name");
+
     initThree();
     initCharts();
     sync();
 
-    ["sl", "sw", "pl", "pw"].forEach(id =>
-        document.getElementById(id).addEventListener("input", sync)
+    [slEl, swEl, plEl, pwEl].forEach(el =>
+        el.addEventListener("input", sync)
     );
-};
-
-/* ================= DOM ================= */
-const slEl = document.getElementById("sl");
-const swEl = document.getElementById("sw");
-const plEl = document.getElementById("pl");
-const pwEl = document.getElementById("pw");
-
-const vSl = document.getElementById("v-sl");
-const vSw = document.getElementById("v-sw");
-const vPl = document.getElementById("v-pl");
-const vPw = document.getElementById("v-pw");
+});
