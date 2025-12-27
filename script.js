@@ -1,23 +1,17 @@
-/* ================== CONFIG ================== */
 const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
-
-/* ================== HELPERS ================== */
 const $ = (id) => document.getElementById(id);
 
-function normalize(val, min, max) {
-  return (val - min) / (max - min);
+/* ================= CLOCK ================= */
+setInterval(() => {
+  $("clock").innerText = new Date().toLocaleTimeString();
+}, 1000);
+
+/* ================= HELPERS ================= */
+function normalize(v, min, max) {
+  return (v - min) / (max - min);
 }
 
-/* ================== CLOCK ================== */
-function startClock() {
-  setInterval(() => {
-    const d = new Date();
-    $("clock").innerText = d.toLocaleTimeString();
-  }, 1000);
-}
-startClock();
-
-/* ================== SPECIES META ================== */
+/* ================= SPECIES META ================= */
 const speciesMeta = {
   "Iris-setosa": {
     color: "#22e6f2",
@@ -33,65 +27,55 @@ const speciesMeta = {
   },
 };
 
-/* ================== THREE.JS ================== */
+/* ================= THREE.JS ================= */
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.z = 6;
 
 const renderer = new THREE.WebGLRenderer({
   canvas: $("three-canvas"),
-  antialias: true,
   alpha: true,
+  antialias: true,
 });
-renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize($("viewport").clientWidth, $("viewport").clientHeight);
 
-const geometry = new THREE.DodecahedronGeometry(1.5, 0);
-const material = new THREE.MeshStandardMaterial({
-  color: "#22e6f2",
-  transparent: true,
-  opacity: 0.9,
-});
-const mesh = new THREE.Mesh(geometry, material);
+const mesh = new THREE.Mesh(
+  new THREE.DodecahedronGeometry(1.5),
+  new THREE.MeshStandardMaterial({
+    color: "#22e6f2",
+    transparent: true,
+    opacity: 0.9,
+  })
+);
 scene.add(mesh);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 const light = new THREE.DirectionalLight(0xffffff, 0.6);
 light.position.set(5, 5, 5);
 scene.add(light);
 
-function animate() {
+(function animate() {
   requestAnimationFrame(animate);
   mesh.rotation.y += 0.003;
   renderer.render(scene, camera);
-}
-animate();
+})();
 
-window.addEventListener("resize", () => {
-  renderer.setSize($("viewport").clientWidth, $("viewport").clientHeight);
-});
-
-/* ================== CHARTS ================== */
-// Probability (Diversity Index)
+/* ================= CHARTS ================= */
+// Diversity Index
 const probChart = new Chart($("probChart"), {
   type: "bar",
   data: {
     labels: ["Setosa", "Versicolor", "Virginica"],
-    datasets: [
-      {
-        data: [0, 0, 0],
-        backgroundColor: ["#22e6f2", "#8a5cff", "#ff4f9a"],
-      },
-    ],
+    datasets: [{
+      data: [0, 0, 0],
+      backgroundColor: ["#22e6f2", "#8a5cff", "#ff4f9a"]
+    }]
   },
   options: {
-    responsive: true,
     indexAxis: "y",
-    scales: {
-      x: { min: 0, max: 1 },
-    },
-    plugins: { legend: { display: false } },
-  },
+    scales: { x: { min: 0, max: 1 } },
+    plugins: { legend: { display: false } }
+  }
 });
 
 // Radar
@@ -99,29 +83,20 @@ const radarChart = new Chart($("radarChart"), {
   type: "radar",
   data: {
     labels: ["SL", "SW", "PL", "PW"],
-    datasets: [
-      {
-        data: [0, 0, 0, 0],
-        borderColor: "#22e6f2",
-        backgroundColor: "rgba(34,230,242,0.15)",
-        pointBackgroundColor: "#22e6f2",
-      },
-    ],
+    datasets: [{
+      data: [0, 0, 0, 0],
+      borderColor: "#22e6f2",
+      backgroundColor: "rgba(34,230,242,0.2)",
+      pointBackgroundColor: "#22e6f2",
+    }]
   },
   options: {
-    responsive: true,
-    scales: {
-      r: {
-        min: 0,
-        max: 7,
-        ticks: { display: false },
-      },
-    },
-    plugins: { legend: { display: false } },
-  },
+    scales: { r: { min: 0, max: 7, ticks: { display: false } } },
+    plugins: { legend: { display: false } }
+  }
 });
 
-/* ================== FETCH ================== */
+/* ================= BACKEND CALL ================= */
 async function predict(sl, sw, pl, pw) {
   const res = await fetch(BACKEND_URL, {
     method: "POST",
@@ -136,87 +111,69 @@ async function predict(sl, sw, pl, pw) {
   return await res.json();
 }
 
-/* ================== SYNC UI ================== */
-let reqId = 0;
-
+/* ================= MAIN SYNC ================= */
 async function sync() {
-  const current = ++reqId;
+  try {
+    const sl = +$("sl").value;
+    const sw = +$("sw").value;
+    const pl = +$("pl").value;
+    const pw = +$("pw").value;
 
-  const sl = Number($("sl").value);
-  const sw = Number($("sw").value);
-  const pl = Number($("pl").value);
-  const pw = Number($("pw").value);
+    $("v-sl").innerText = sl;
+    $("v-sw").innerText = sw;
+    $("v-pl").innerText = pl;
+    $("v-pw").innerText = pw;
 
-  $("v-sl").innerText = sl.toFixed(1);
-  $("v-sw").innerText = sw.toFixed(1);
-  $("v-pl").innerText = pl.toFixed(1);
-  $("v-pw").innerText = pw.toFixed(1);
+    const data = await predict(sl, sw, pl, pw);
+    console.log("BACKEND:", data);
 
-  const data = await predict(sl, sw, pl, pw);
-  if (current !== reqId) return;
+    const map = {
+      0: "Iris-setosa",
+      1: "Iris-versicolor",
+      2: "Iris-virginica",
+    };
 
-  const map = {
-    0: "Iris-setosa",
-    1: "Iris-versicolor",
-    2: "Iris-virginica",
-  };
-  const species = map[data.prediction];
-  const meta = speciesMeta[species];
-  const probs = data.probabilities;
+    const species = map[data.prediction];
+    const meta = speciesMeta[species];
+    const p = data.probabilities;
 
-  // Titles
-  $("hud-name").innerText = species.toUpperCase();
-  $("species-title").innerText = species.split("-")[1];
-  $("species-title").style.color = meta.color;
+    $("hud-name").innerText = species.toUpperCase();
+    $("species-title").innerText = species.split("-")[1];
+    $("species-title").style.color = meta.color;
 
-  // Harmony score (simple)
-  const harmony = Math.round(
-    Math.max(probs.setosa, probs.versicolor, probs.virginica) * 100
-  );
-  $("harmony-score").innerText = harmony;
+    $("harmony-score").innerText =
+      Math.round(Math.max(p.setosa, p.versicolor, p.virginica) * 100);
 
-  // ===== 3D SCALE (PROPER PROPORTION) =====
-  const nPL = normalize(pl, 1.0, 7.0);
-  const nSW = normalize(sw, 2.0, 4.5);
-  const nPW = normalize(pw, 0.1, 2.5);
+    // 3D
+    mesh.material.color.set(meta.color);
+    mesh.scale.set(
+      1 + normalize(pl, 1, 7),
+      1 + normalize(sw, 2, 4.5),
+      1 + normalize(pw, 0.1, 2.5)
+    );
 
-  mesh.scale.set(
-    1 + nPL * 1.2,
-    1 + nSW * 0.8,
-    1 + nPW * 1.0
-  );
+    // Graph
+    probChart.data.datasets[0].data = [p.setosa, p.versicolor, p.virginica];
+    probChart.update();
 
-  // ===== 3D COLOR (FINAL FIX) =====
-  mesh.material.color.set(meta.color);
-  mesh.material.needsUpdate = true;
+    // Radar
+    radarChart.data.datasets[0].data = meta.base;
+    radarChart.data.datasets[0].borderColor = meta.color;
+    radarChart.update();
 
-  // ===== PROBABILITY GRAPH =====
-  probChart.data.datasets[0].data = [
-    probs.setosa,
-    probs.versicolor,
-    probs.virginica,
-  ];
-  probChart.update();
-
-  // ===== RADAR =====
-  radarChart.data.datasets[0].data = meta.base;
-  radarChart.data.datasets[0].borderColor = meta.color;
-  radarChart.data.datasets[0].pointBackgroundColor = meta.color;
-  radarChart.data.datasets[0].backgroundColor =
-    meta.color + "33";
-  radarChart.update();
+  } catch (e) {
+    console.error("SYNC ERROR:", e);
+  }
 }
 
-/* ================== EVENTS ================== */
-["sl", "sw", "pl", "pw"].forEach((id) =>
+/* ================= EVENTS ================= */
+["sl", "sw", "pl", "pw"].forEach(id =>
   $(id).addEventListener("input", sync)
 );
 
-// initial
 sync();
 
-/* ================== OPTIONAL BUTTONS ================== */
-window.saveSpecimen = () => alert("Archived locally.");
+/* ================= BUTTONS ================= */
+window.saveSpecimen = () => alert("Saved locally");
 window.runAnalysis = () =>
-  ($("ai-report").innerText =
-    "Prediction confidence is high based on feature alignment.");
+  ($("ai-report").innerText = "Prediction confidence is high.");
