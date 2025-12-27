@@ -23,28 +23,25 @@ let harmonyEl, speciesTitleEl, hudNameEl, clockEl;
 
 /* ================= CHARTS / THREE ================= */
 let charts = {};
-let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
+let threeCore = {};
 
 /* ================= LIVE CLOCK ================= */
 function startClock() {
-    if (!clockEl) return;
-
     function tick() {
-        const now = new Date();
-        const h = String(now.getHours()).padStart(2, "0");
-        const m = String(now.getMinutes()).padStart(2, "0");
-        const s = String(now.getSeconds()).padStart(2, "0");
-        clockEl.textContent = `${h}:${m}:${s}`;
+        const d = new Date();
+        clockEl.textContent =
+            `${String(d.getHours()).padStart(2, "0")}:` +
+            `${String(d.getMinutes()).padStart(2, "0")}:` +
+            `${String(d.getSeconds()).padStart(2, "0")}`;
     }
-
     tick();
     setInterval(tick, 1000);
 }
 
 /* ================= THREE.JS ================= */
 function initThree() {
-    const container = document.getElementById("viewport");
     const canvas = document.getElementById("three-canvas");
+    const container = document.getElementById("viewport");
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
@@ -54,12 +51,7 @@ function initThree() {
         1000
     );
 
-    const renderer = new THREE.WebGLRenderer({
-        canvas,
-        antialias: true,
-        alpha: true
-    });
-
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
@@ -110,16 +102,14 @@ function initCharts() {
             datasets: [{
                 data: [5.01, 3.43, 1.46, 0.25],
                 borderColor: "#00f2ff",
-                backgroundColor: "rgba(0,242,255,0.2)"
+                backgroundColor: "rgba(0,242,255,0.25)"
             }]
         },
-        options: {
-            plugins: { legend: { display: false } }
-        }
+        options: { plugins: { legend: { display: false } } }
     });
 }
 
-/* ================= MAIN LOGIC ================= */
+/* ================= MAIN SYNC ================= */
 function sync() {
     const sl = +slEl.value;
     const sw = +swEl.value;
@@ -143,7 +133,7 @@ function sync() {
             petal_width: pw
         })
     })
-    .then(res => res.json())
+    .then(r => r.json())
     .then(data => {
         if (currentRequest !== requestId) return;
 
@@ -157,24 +147,23 @@ function sync() {
         if (!mlSpecies) return;
 
         const color = speciesData[mlSpecies].color;
+        const probs = data.probabilities;
 
         /* ===== TEXT ===== */
+        hudNameEl.textContent = mlSpecies.toUpperCase();
         speciesTitleEl.textContent = mlSpecies.split("-")[1];
         speciesTitleEl.style.color = color;
-        hudNameEl.textContent = mlSpecies.toUpperCase();
 
-        /* ===== HARMONY SCORE ===== */
-        const probs = data.probabilities;
-        const harmony = Math.round(
+        /* ===== HARMONY ===== */
+        harmonyEl.textContent = Math.round(
             Math.max(probs.setosa, probs.versicolor, probs.virginica) * 100
         );
-        harmonyEl.textContent = harmony;
 
-        /* ===== DIVERSITY INDEX ===== */
+        /* ===== DIVERSITY GRAPH (FIXED) ===== */
         charts.prob.data.datasets[0].data = [
-            probs.setosa,
-            probs.versicolor,
-            probs.virginica
+            Number(probs.setosa.toFixed(2)),
+            Number(probs.versicolor.toFixed(2)),
+            Number(probs.virginica.toFixed(2))
         ];
         charts.prob.update();
 
@@ -182,37 +171,32 @@ function sync() {
         const base = canonicalFeatures[mlSpecies];
         charts.radar.data.datasets[0].data = base;
         charts.radar.data.datasets[0].borderColor = color;
-        charts.radar.data.datasets[0].backgroundColor = color + "33";
+        charts.radar.data.datasets[0].backgroundColor = color + "44";
         charts.radar.update();
 
-        /* ===== 3D SCALE (SLIDER + CANONICAL BLEND) ===== */
-        const [slB, swB, plB, pwB] = base;
+        /* ===== 3D SCALE ===== */
         const blend = 0.35;
-
-        const scalePL = pl * (1 - blend) + plB * blend;
-        const scaleSW = sw * (1 - blend) + swB * blend;
-        const scalePW = pw * (1 - blend) + pwB * blend;
-
         threeCore.mesh.scale.set(
-            1 + scalePL * 0.05,
-            1 + scaleSW * 0.05,
-            1 + scalePW * 0.05
+            1 + (pl * (1 - blend) + base[2] * blend) * 0.05,
+            1 + (sw * (1 - blend) + base[1] * blend) * 0.05,
+            1 + (pw * (1 - blend) + base[3] * blend) * 0.05
         );
 
-        threeCore.mesh.material.color.setStyle(color);
-        threeCore.mesh.material.needsUpdate = true;
+        /* ===== 3D COLOR (FIXED) ===== */
+        threeCore.mesh.material.dispose();
+        threeCore.mesh.material = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color),
+            transparent: true,
+            opacity: 0.85
+        });
     });
 }
 
 /* ================= BUTTONS ================= */
-window.saveSpecimen = function () {
-    alert("✅ Specimen archived successfully!");
-};
-
-window.runAnalysis = function () {
+window.saveSpecimen = () => alert("✅ Specimen archived successfully!");
+window.runAnalysis = () =>
     document.getElementById("ai-report").innerText =
-        "AI Analysis Complete. Specimen shows stable morphology with high confidence.";
-};
+        "AI Analysis Complete. Morphology stable with high confidence.";
 
 /* ================= INIT ================= */
 window.addEventListener("DOMContentLoaded", () => {
