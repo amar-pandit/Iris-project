@@ -3,7 +3,6 @@ const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
 
 /* ================= HELPERS ================= */
 const $ = (id) => document.getElementById(id);
-
 function normalize(v, min, max) {
   return (v - min) / (max - min);
 }
@@ -12,16 +11,6 @@ function normalize(v, min, max) {
 setInterval(() => {
   $("clock").innerText = new Date().toLocaleTimeString();
 }, 1000);
-
-/* ================= SPECIES MAP (CRITICAL FIX) ================= */
-const speciesMap = {
-  0: "Iris-setosa",
-  1: "Iris-versicolor",
-  2: "Iris-virginica",
-  "setosa": "Iris-setosa",
-  "versicolor": "Iris-versicolor",
-  "virginica": "Iris-virginica"
-};
 
 /* ================= UI META ================= */
 const speciesData = {
@@ -73,7 +62,6 @@ scene.add(light);
 })();
 
 /* ================= CHARTS ================= */
-// Probability bar
 const probChart = new Chart($("probChart"), {
   type: "bar",
   data: {
@@ -90,7 +78,6 @@ const probChart = new Chart($("probChart"), {
   }
 });
 
-// Radar
 const radarChart = new Chart($("radarChart"), {
   type: "radar",
   data: {
@@ -110,22 +97,17 @@ const radarChart = new Chart($("radarChart"), {
 
 /* ================= BACKEND CALL ================= */
 async function predict(sl, sw, pl, pw) {
-  try {
-    const res = await fetch(BACKEND_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sepal_length: sl,
-        sepal_width: sw,
-        petal_length: pl,
-        petal_width: pw
-      })
-    });
-    return await res.json();
-  } catch (e) {
-    console.error("FETCH ERROR:", e);
-    return null;
-  }
+  const res = await fetch(BACKEND_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sepal_length: sl,
+      sepal_width: sw,
+      petal_length: pl,
+      petal_width: pw
+    })
+  });
+  return await res.json();
 }
 
 /* ================= MAIN SYNC ================= */
@@ -145,18 +127,15 @@ async function sync() {
 
   console.log("BACKEND DATA:", data);
 
-  const mlSpecies = speciesMap[data.prediction];
-  if (!mlSpecies) return;
-
+  // ✅ FINAL FIX
+  const mlSpecies = data.prediction;
   const meta = speciesData[mlSpecies];
   if (!meta) return;
 
-  /* ===== TEXT ===== */
   $("hud-name").innerText = mlSpecies.toUpperCase();
   $("species-title").innerText = mlSpecies.split("-")[1];
   $("species-title").style.color = meta.color;
 
-  /* ===== HARMONY ===== */
   $("harmony-score").innerText = Math.round(
     Math.max(
       data.probabilities.setosa,
@@ -165,18 +144,13 @@ async function sync() {
     ) * 100
   );
 
-  /* ===== 3D COLOR (FINAL FIX) ===== */
   mesh.material.color.set(meta.color);
-  mesh.material.needsUpdate = true;
-
-  /* ===== 3D SCALE (PROPER PROPORTION) ===== */
   mesh.scale.set(
     1 + normalize(pl, 1, 7) * 1.2,
     1 + normalize(sw, 2, 4.5) * 0.8,
-    1 + normalize(pw, 0.1, 2.5) * 1.0
+    1 + normalize(pw, 0.1, 2.5)
   );
 
-  /* ===== PROBABILITY GRAPH ===== */
   probChart.data.datasets[0].data = [
     data.probabilities.setosa,
     data.probabilities.versicolor,
@@ -184,7 +158,6 @@ async function sync() {
   ];
   probChart.update();
 
-  /* ===== RADAR ===== */
   radarChart.data.datasets[0].data = meta.features;
   radarChart.data.datasets[0].borderColor = meta.color;
   radarChart.data.datasets[0].backgroundColor = meta.color + "33";
@@ -196,11 +169,9 @@ async function sync() {
   $(id).addEventListener("input", sync)
 );
 
-// initial call
 sync();
 
 /* ================= BUTTONS ================= */
 window.saveSpecimen = () => alert("Specimen archived locally.");
 window.runAnalysis = () =>
-  ($("ai-report").innerText =
-    "AI analysis complete. High confidence morphology.");
+  ($("ai-report").innerText = "AI analysis complete. High confidence morphology.");
