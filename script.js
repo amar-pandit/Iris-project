@@ -1,14 +1,24 @@
 /* ================= BACKEND URL ================= */
 const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
 
+/* ================= RACE CONDITION FIX ================= */
+let requestId = 0;
+
+/* ================= CANONICAL FEATURES (CSV MEAN BASED) ================= */
+const canonicalFeatures = {
+    "Iris-setosa":     [5.01, 3.43, 1.46, 0.25],
+    "Iris-versicolor": [5.94, 2.77, 4.26, 1.33],
+    "Iris-virginica":  [6.59, 2.97, 5.55, 2.03]
+};
+
 /* ================= GLOBAL ================= */
 let charts = {};
 let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
 
 const speciesData = {
-    "Iris-setosa": { color: "#00f2ff", confidence: [0.99, 0.01, 0.01] },
-    "Iris-versicolor": { color: "#7000ff", confidence: [0.05, 0.90, 0.05] },
-    "Iris-virginica": { color: "#ff0070", confidence: [0.01, 0.05, 0.94] }
+    "Iris-setosa": { color: "#00f2ff" },
+    "Iris-versicolor": { color: "#7000ff" },
+    "Iris-virginica": { color: "#ff0070" }
 };
 
 /* ================= THREE.JS ================= */
@@ -17,7 +27,13 @@ function initThree() {
     if (!container) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+        45,
+        container.clientWidth / container.clientHeight,
+        0.1,
+        1000
+    );
+
     const renderer = new THREE.WebGLRenderer({
         canvas: document.getElementById("three-canvas"),
         antialias: true,
@@ -54,7 +70,7 @@ function initCharts() {
         type: "bar",
         data: {
             labels: ["Setosa", "Versicolor", "Virginica"],
-            datasets: [{ data: [0.99, 0.01, 0.01] }]
+            datasets: [{ data: [0, 0, 0] }]
         },
         options: {
             indexAxis: "y",
@@ -66,7 +82,7 @@ function initCharts() {
         type: "radar",
         data: {
             labels: ["SL", "SW", "PL", "PW"],
-            datasets: [{ data: [5.1, 3.5, 1.4, 0.2] }]
+            datasets: [{ data: [5.01, 3.43, 1.46, 0.25] }]
         },
         options: { plugins: { legend: { display: false } } }
     });
@@ -84,28 +100,9 @@ function sync() {
     vPl.innerText = pl;
     vPw.innerText = pw;
 
-    // Local fallback logic (safe)
-    let species = "Iris-setosa";
-    if (pl > 2.2 && pl <= 4.9) species = "Iris-versicolor";
-    else if (pl > 4.9) species = "Iris-virginica";
+    /* ---------- BACKEND CALL (LATEST ONLY) ---------- */
+    const currentRequest = ++requestId;
 
-    const curr = speciesData[species];
-
-    // UI update (local)
-    document.getElementById("hud-name").innerText = species.toUpperCase();
-    document.getElementById("species-title").innerText = species.split("-")[1];
-    document.getElementById("species-title").style.color = curr.color;
-
-    charts.radar.data.datasets[0].data = [sl, sw, pl, pw];
-    charts.radar.data.datasets[0].borderColor = curr.color;
-    charts.radar.update();
-
-    charts.prob.data.datasets[0].data = curr.confidence;
-    charts.prob.update();
-
-    threeCore.mesh.material.color.set(curr.color);
-
-    /* ================= FASTAPI ML OVERRIDE ================= */
     fetch(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,6 +115,8 @@ function sync() {
     })
     .then(res => res.json())
     .then(data => {
+        if (currentRequest !== requestId) return;
+
         const map = {
             0: "Iris-setosa",
             1: "Iris-versicolor",
@@ -129,10 +128,12 @@ function sync() {
 
         const mlCurr = speciesData[mlSpecies];
 
+        /* ---------- TEXT + COLOR ---------- */
         document.getElementById("hud-name").innerText = mlSpecies.toUpperCase();
         document.getElementById("species-title").innerText = mlSpecies.split("-")[1];
         document.getElementById("species-title").style.color = mlCurr.color;
 
+        /* ---------- CONFIDENCE ---------- */
         charts.prob.data.datasets[0].data = [
             data.probabilities.setosa,
             data.probabilities.versicolor,
@@ -140,9 +141,20 @@ function sync() {
         ];
         charts.prob.update();
 
+        /* ---------- CANONICAL LOOK (CSV BASED) ---------- */
+        const features = canonicalFeatures[mlSpecies];
+        if (!features) return;
+
+        charts.radar.data.datasets[0].data = features;
         charts.radar.data.datasets[0].borderColor = mlCurr.color;
         charts.radar.update();
 
+        const [slB, swB, plB, pwB] = features;
+        threeCore.mesh.scale.set(
+            1 + plB * 0.08,
+            1 + swB * 0.08,
+            1 + pwB * 0.08
+        );
         threeCore.mesh.material.color.set(mlCurr.color);
     })
     .catch(() => {});
