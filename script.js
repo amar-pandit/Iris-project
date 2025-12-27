@@ -1,84 +1,15 @@
-/* ================= BACKEND URL =================
-   🔴 IMPORTANT:
-   Deploy ke baad is URL ko apne Render URL se replace karo
-   Example:
-   https://iris-project-b4fp.onrender.com/predict
-================================================ */
+/* ================= BACKEND URL ================= */
 const BACKEND_URL = "https://iris-project-b4fp.onrender.com/predict";
-
-/* ================= SPECIES MAP (FIX) ================= */
-const speciesMap = {
-    0: "Iris-setosa",
-    1: "Iris-versicolor",
-    2: "Iris-virginica",
-    "setosa": "Iris-setosa",
-    "versicolor": "Iris-versicolor",
-    "virginica": "Iris-virginica",
-    "Iris-setosa": "Iris-setosa",
-    "Iris-versicolor": "Iris-versicolor",
-    "Iris-virginica": "Iris-virginica"
-};
-
-/* ================= DEBOUNCE ================= */
-function debounce(fn, delay = 400) {
-    let timer;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn(...args), delay);
-    };
-}
-
-/* ================= TOAST ================= */
-function toast(msg) {
-    const t = document.createElement("div");
-    t.innerText = msg;
-    t.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.85);
-        color: #fff;
-        padding: 12px 28px;
-        font-weight: 700;
-        font-size: 0.8rem;
-        border-radius: 30px;
-        z-index: 9999;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    `;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2500);
-}
 
 /* ================= GLOBAL ================= */
 let charts = {};
 let threeCore = { scene: null, camera: null, renderer: null, mesh: null };
 
 const speciesData = {
-    "Iris-setosa": { color: "#00f2ff" },
-    "Iris-versicolor": { color: "#7000ff" },
-    "Iris-virginica": { color: "#ff0070" }
+    "Iris-setosa": { color: "#00f2ff", confidence: [0.99, 0.01, 0.01] },
+    "Iris-versicolor": { color: "#7000ff", confidence: [0.05, 0.90, 0.05] },
+    "Iris-virginica": { color: "#ff0070", confidence: [0.01, 0.05, 0.94] }
 };
-
-/* ================= BACKEND CALL ================= */
-async function fetchPrediction(sl, sw, pl, pw) {
-    try {
-        const res = await fetch(BACKEND_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                sepal_length: sl,
-                sepal_width: sw,
-                petal_length: pl,
-                petal_width: pw
-            })
-        });
-        return await res.json();
-    } catch (err) {
-        console.error("Backend not reachable");
-        return null;
-    }
-}
 
 /* ================= THREE.JS ================= */
 function initThree() {
@@ -86,13 +17,7 @@ function initThree() {
     if (!container) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
-        45,
-        container.clientWidth / container.clientHeight,
-        0.1,
-        1000
-    );
-
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({
         canvas: document.getElementById("three-canvas"),
         antialias: true,
@@ -129,7 +54,7 @@ function initCharts() {
         type: "bar",
         data: {
             labels: ["Setosa", "Versicolor", "Virginica"],
-            datasets: [{ data: [0, 0, 0] }]
+            datasets: [{ data: [0.99, 0.01, 0.01] }]
         },
         options: {
             indexAxis: "y",
@@ -147,7 +72,7 @@ function initCharts() {
     });
 }
 
-/* ================= MAIN SYNC ================= */
+/* ================= MAIN LOGIC ================= */
 function sync() {
     const sl = +slEl.value;
     const sw = +swEl.value;
@@ -159,49 +84,78 @@ function sync() {
     vPl.innerText = pl;
     vPw.innerText = pw;
 
+    // Local fallback logic (safe)
+    let species = "Iris-setosa";
+    if (pl > 2.2 && pl <= 4.9) species = "Iris-versicolor";
+    else if (pl > 4.9) species = "Iris-virginica";
+
+    const curr = speciesData[species];
+
+    // UI update (local)
+    document.getElementById("hud-name").innerText = species.toUpperCase();
+    document.getElementById("species-title").innerText = species.split("-")[1];
+    document.getElementById("species-title").style.color = curr.color;
+
     charts.radar.data.datasets[0].data = [sl, sw, pl, pw];
+    charts.radar.data.datasets[0].borderColor = curr.color;
     charts.radar.update();
 
-    fetchPrediction(sl, sw, pl, pw).then((data) => {
-        if (!data) return;
+    charts.prob.data.datasets[0].data = curr.confidence;
+    charts.prob.update();
 
-        /* 🔥 FIXED LOGIC */
-        const rawPred = data.prediction;
-        const pred = speciesMap[rawPred];
-        const curr = speciesData[pred];
+    threeCore.mesh.material.color.set(curr.color);
 
-        /* 🛡 SAFETY CHECK */
-        if (!curr) return;
+    /* ================= FASTAPI ML OVERRIDE ================= */
+    fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            sepal_length: sl,
+            sepal_width: sw,
+            petal_length: pl,
+            petal_width: pw
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        const map = {
+            0: "Iris-setosa",
+            1: "Iris-versicolor",
+            2: "Iris-virginica"
+        };
 
-        const probs = data.probabilities;
+        const mlSpecies = map[data.prediction];
+        if (!mlSpecies) return;
 
-        document.getElementById("hud-name").innerText = pred.toUpperCase();
-        document.getElementById("species-title").innerText = pred.split("-")[1];
-        document.getElementById("species-title").style.color = curr.color;
+        const mlCurr = speciesData[mlSpecies];
+
+        document.getElementById("hud-name").innerText = mlSpecies.toUpperCase();
+        document.getElementById("species-title").innerText = mlSpecies.split("-")[1];
+        document.getElementById("species-title").style.color = mlCurr.color;
 
         charts.prob.data.datasets[0].data = [
-            probs.setosa,
-            probs.versicolor,
-            probs.virginica
+            data.probabilities.setosa,
+            data.probabilities.versicolor,
+            data.probabilities.virginica
         ];
         charts.prob.update();
 
-        threeCore.mesh.material.color.set(curr.color);
-    });
+        charts.radar.data.datasets[0].borderColor = mlCurr.color;
+        charts.radar.update();
+
+        threeCore.mesh.material.color.set(mlCurr.color);
+    })
+    .catch(() => {});
 }
-
-const debouncedSync = debounce(sync, 400);
-
-/* ================= BUTTON ================= */
-window.saveSpecimen = () => toast("Archived (Local)");
 
 /* ================= INIT ================= */
 window.onload = () => {
     initThree();
     initCharts();
+    sync();
 
     ["sl", "sw", "pl", "pw"].forEach(id =>
-        document.getElementById(id).addEventListener("input", debouncedSync)
+        document.getElementById(id).addEventListener("input", sync)
     );
 };
 
